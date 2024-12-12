@@ -1,0 +1,180 @@
+import pygame
+import random
+
+# 初始化 Pygame
+pygame.init()
+pygame.mixer.init()  # 确保混合器也初始化了
+
+# 窗口设置
+WIDTH, HEIGHT = 1200, 800
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Flappy Bird with Images and Sounds")
+
+# 游戏参数
+BIRD_SIZE = 50
+PIPE_WIDTH = 70
+GAP_START = 200
+BASE_SPEED = 5
+GRAVITY = 0.5
+
+# 加载图片
+BIRD_IMAGE = pygame.image.load("OIP-C.GIF")
+PIPE_IMAGE = pygame.image.load("3187564-2854210506-5ea8c.png")
+BACKGROUND_IMAGE = pygame.image.load("IMGb8ca3abea89353969859133.JPG")
+
+BIRD_IMAGE = pygame.transform.scale(BIRD_IMAGE, (BIRD_SIZE, BIRD_SIZE))
+PIPE_IMAGE = pygame.transform.scale(PIPE_IMAGE, (PIPE_WIDTH, HEIGHT))
+BACKGROUND_IMAGE = pygame.transform.scale(BACKGROUND_IMAGE, (WIDTH, HEIGHT))
+
+# 加载音效
+pygame.mixer.init()
+FLAP_SOUND = pygame.mixer.Sound("tatgr-thsp1.wav")
+HIT_SOUND = pygame.mixer.Sound("83h5j-4nclv.wav")
+POINT_SOUND = pygame.mixer.Sound("4hg18-fzztf.wav")
+BACKGROUND_MUSIC = pygame.mixer.music.load(r"C:\Users\Lrh15\Desktop\新建文件夹 (2)\26550995588-1-30280.mp3.mp3")
+
+# 播放背景音乐（在循环中播放）
+pygame.mixer.music.play(-1)  # -1 表示无限循环
+
+# 小鸟类
+class Bird:
+    def __init__(self):
+        self.x = 50
+        self.y = HEIGHT // 2
+        self.velocity = 0
+
+    def flap(self):
+        self.velocity = -8
+        FLAP_SOUND = pygame.mixer.Sound('path_to_your_sound_file.wav')  # 确保使用正确的文件路径和扩展名
+        FLAP_SOUND.play()  # 播放音效
+
+    def move(self):
+        self.velocity += GRAVITY
+        self.y += self.velocity
+
+    def draw(self):
+        screen.blit(BIRD_IMAGE, (self.x - BIRD_SIZE // 2, self.y - BIRD_SIZE // 2))
+
+    def get_rect(self):
+        return pygame.Rect(self.x - BIRD_SIZE // 2, self.y - BIRD_SIZE // 2, BIRD_SIZE, BIRD_SIZE)
+
+# 管道类
+class Pipe:
+    def __init__(self, gap, velocity):
+        self.x = WIDTH
+        self.gap = gap
+        self.height = random.randint(50, HEIGHT - 200)
+        self.velocity = velocity
+        self.passed = False
+
+    def move(self):
+        self.x -= self.velocity
+
+    def draw(self):
+        top_pipe = pygame.transform.flip(PIPE_IMAGE, False, True)
+        screen.blit(top_pipe, (self.x, self.height - PIPE_IMAGE.get_height()))
+        screen.blit(PIPE_IMAGE, (self.x, self.height + self.gap))
+
+    def get_rects(self):
+        top_rect = pygame.Rect(self.x, 0, PIPE_WIDTH, self.height)
+        bottom_rect = pygame.Rect(self.x, self.height + self.gap, PIPE_WIDTH, HEIGHT - self.height - self.gap)
+        return top_rect, bottom_rect
+
+# 主循环
+def game_loop():
+    bird = Bird()
+    pipes = [Pipe(GAP_START, BASE_SPEED)]
+    score = 0
+    running = True
+    game_over = False
+    clock = pygame.time.Clock()
+
+    # 新增控制重新开始和退出的标志
+    restart_game = False
+    quit_game = False
+
+    while running:
+        screen.blit(BACKGROUND_IMAGE, (0, 0))  # 绘制背景
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                quit_game = True  # 标记为退出
+            if event.type == pygame.KEYDOWN:
+                if not game_over:
+                    if event.key == pygame.K_SPACE:  # 空格键让小鸟飞
+                        bird.flap()
+                else:
+                    if event.key == pygame.K_r:  # R 键重新开始
+                        restart_game = True
+                        running = False  # 结束当前循环
+                    if event.key == pygame.K_q:  # Q 键退出
+                        quit_game = True
+                        running = False
+
+        if not game_over:
+            bird.move()
+            for pipe in pipes:
+                pipe.move()
+                if pipe.x + PIPE_WIDTH < 0:
+                    pipes.remove(pipe)
+                    pipes.append(Pipe(GAP_START, BASE_SPEED))
+
+                if pipe.x + PIPE_WIDTH < bird.x and not pipe.passed:
+                    pipe.passed = True
+                    score += 1
+                    POINT_SOUND.play()
+
+                pipe.draw()
+
+            bird_rect = bird.get_rect()
+            for pipe in pipes:
+                top_rect, bottom_rect = pipe.get_rects()
+                if bird_rect.colliderect(top_rect) or bird_rect.colliderect(bottom_rect):
+                    game_over = True
+                    HIT_SOUND.play()
+
+            if bird.y < 0 or bird.y > HEIGHT:
+                game_over = True
+                HIT_SOUND.play()
+
+            bird.draw()
+
+            # 显示分数
+            font = pygame.font.Font(None, 36)
+            score_text = font.render(f"Score: {score}", True, (255, 255, 255))
+            screen.blit(score_text, (10, 10))
+
+        else:
+            # 显示“游戏结束”和操作提示
+            font = pygame.font.Font(None, 48)
+            game_over_text = font.render("Game Over!", True, (255, 0, 0))
+            restart_text = font.render("Press R to Restart", True, (255, 255, 255))
+            quit_text = font.render("Press Q to Quit", True, (255, 255, 255))
+            screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - 100))
+            screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT // 2))
+            screen.blit(quit_text, (WIDTH // 2 - quit_text.get_width() // 2, HEIGHT // 2 + 50))
+            pygame.mixer.music.stop()
+
+        pygame.display.update()
+        clock.tick(30)
+    if game_over:
+        # 停止背景音乐（可选，但推荐在游戏结束时停止音乐）
+        pygame.mixer.music.stop()
+        while not (restart_game or quit_game):
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        restart_game = True
+                    if event.key == pygame.K_q:
+                        quit_game = True
+    # 判断退出或重新开始q
+    if restart_game:
+        pygame.mixer.music.play(-1)
+        game_loop()  # 调用自身重新启动游戏
+    if quit_game:
+        pygame.quit()  # 退出游戏
+
+# 启动游戏
+if __name__ == "__main__":
+    game_loop()
